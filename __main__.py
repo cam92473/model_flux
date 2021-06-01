@@ -1,3 +1,4 @@
+from operator import eq
 import tkinter as tk
 
 
@@ -12,12 +13,11 @@ class Extinction(tk.Frame):
     def build_axes(self):
         import numpy as np
         from astropy.io import fits
-
         with fits.open("fits_library/ckm05/ckm05_3500.fits") as hdul:
-            indata_nm = hdul[1].data["WAVELENGTH"]
+            indata_ang = hdul[1].data["WAVELENGTH"]
+            indata_nm = np.array([round(i/10,4) for i in indata_ang])
 
         y_vals=[]
-
         for wvlngth in indata_nm:
             if wvlngth > 1000:
                 y_vals.append(self.extinctionfunctions.ir_model(1000 / wvlngth))
@@ -40,6 +40,7 @@ class Extinction(tk.Frame):
         matplotlib.use('TkAgg')
         fig = Figure(figsize=(4.2,3.5))
         abc = fig.add_subplot(111)
+        abc.axis([0,9,-5,10])
         abc.scatter(array[:,0],array[:,1])
 
         canvas = FigureCanvasTkAgg(fig, master=self)
@@ -192,10 +193,11 @@ class App(tk.Tk):
         self.title("Model Flux Calculator")
         self.geometry("1380x950+300+30")
         self.configure(bg="gray95")
-        self.build_tabs()
         self.resolution()
+        self.build_tabs()
         self.create_tab1()
         self.create_tab2()
+        self.create_tab3()
         
         
     def create_tab1(self):
@@ -222,18 +224,181 @@ class App(tk.Tk):
         normbutton = tk.Button(buttframe,text="Normalized linearly interpolated",font=("Arial",12),command = filterplot.make_norm_plot,bg='white')
         normbutton.pack(side=tk.BOTTOM,ipadx=26,ipady=20)
 
+    def create_tab3(self):
+
+        def findFTF():
+            from tkinter import messagebox
+            try:
+                user_grav = float(grav_entry.get())
+                user_metal = float(metal_entry.get())
+                user_temp = float(temp_entry.get())
+                user_interp = interpsel.get()
+                user_filter = filterchosen.get()
+                user_theta_r = float(thetar_entry.get())
+                user_ebv = float(EBV_entry.get())
+            except:
+                tk.messagebox.showinfo('Error', 'Please enter numbers')
+            else:
+                if user_grav < 0 or user_grav > 5:
+                    tk.messagebox.showinfo('Error', 'Please enter a value from 0 to 5')
+                elif user_metal < -2.5 or user_metal > 0.5:
+                    tk.messagebox.showinfo('Error', 'Please enter a value from -2.5 to 0.5')
+                elif user_temp < 3500 or user_temp > 50000:
+                    tk.messagebox.showinfo('Error', 'Please enter a value from 3500 to 50000')
+                elif user_interp == "                                 ":
+                    tk.messagebox.showinfo('Error', 'Please select an interpolation method')
+                elif user_filter == "            ":
+                    tk.messagebox.showinfo('Error', 'Please select a filter')
+                else:
+                    flag = False
+                    temp_cliffs = [6250,7750,8500,9250,15000,20000,27000,32000,40000,50000]
+                    grav_flats = [0.0,0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5]
+                    for p in range(10):
+                        if user_grav <= grav_flats[p]:
+                            if user_temp >= temp_cliffs[p]:
+                                tk.messagebox.showinfo('Error','This will return a spectrum where all fluxes are zero. Please select different values.')                                
+                                flag = True
+                        if user_grav <= 2.0 and user_temp >= 12000 and user_temp <= 13000:
+                            tk.messagebox.showinfo('Error','This will return a spectrum where all fluxes are zero. Please select different values.')                                
+                            flag = True
+                    if flag == False:
+                        try:
+                            c1=float(coolentrybucket[0].get())
+                            c2=float(coolentrybucket[1].get())
+                            c4=float(coolentrybucket[2].get())
+                            c5=float(coolentrybucket[3].get())
+                            x0=float(coolentrybucket[4].get())
+                            c3=float(coolentrybucket[5].get())
+                            gamma=float(coolentrybucket[6].get())
+                            O3=float(coolentrybucket[7].get())
+                            O2=float(coolentrybucket[8].get())
+                            O1=float(coolentrybucket[9].get())
+                            k_IR=float(coolentrybucket[10].get())
+                            R_V=float(coolentrybucket[11].get())
+                        
+                        except:
+                            from tkinter import messagebox
+                            tk.messagebox.showinfo('Error', 'Please reenter parameters.')
+                        else:
+                            extinction = Extinction(self.tab1,c1,c2,c4,c5,x0,c3,gamma,O3,O2,O1,k_IR,R_V)
+                            extinction.build_axes()
+                            interpo = Interpo(user_grav,user_temp,user_metal,user_interp)
+                            interpo.run()
+                            from calculations.filter_calib import Filter
+                            ghostfilter = Filter(self.tab3)
+                            from calculations.flux_through_filter import FTF
+                            ftf = FTF(self.tab3,extinction.grapharray_xsrt[:,1],extinction.R_V,interpo.final_wave_list,user_theta_r,user_ebv,user_filter,ghostfilter.xcont,ghostfilter.normalized2,ghostfilter.F110Wlist,ghostfilter.F148Wlist,ghostfilter.F160Wlist,ghostfilter.F275Wlist,ghostfilter.F336Wlist,ghostfilter.F475Wlist,ghostfilter.F814Wlist,ghostfilter.N219Mlist,ghostfilter.N279Nlist,ghostfilter.F172Mlist,ghostfilter.F169Mlist)
+                            ftf.sum_over_wavelengths()
+                            self.intebox.insert(tk.END,"Integrated model flux through {}: {}".format(user_filter,ftf.Igral))
+
+
+        self.configure_grid3(testlabels=False)
+        totbub = tk.Canvas(self.tab3,bg='papaya whip',height=1500,width=2000)
+        totbub.place(x=0,y=0)
+        upbub = tk.Canvas(self.tab3,bg='lavender blush',bd=3,height=380,width=570,relief=tk.GROOVE)
+        upbub.place(x=30,y=120)
+        downbub = tk.Canvas(self.tab3,bg='lavender blush',bd=3,height=360,width=430,relief=tk.GROOVE)
+        downbub.place(x=630,y=120)
+        grav_pack = tk.Frame(self.tab3)
+        grav_pack.place(x=280,y=149)
+        grav_label = tk.Label(grav_pack,text="Log of surface gravity", bd=4, relief=tk.GROOVE,padx=13)
+        grav_label.pack(padx=0, pady=0)
+        grav_entry = tk.Entry(self.tab3, bd=4, relief=tk.SUNKEN)
+        grav_entry.place(x=430,y=149)
+        metal_pack = tk.Frame(self.tab3)
+        metal_pack.place(x=280,y=227)
+        metal_label = tk.Label(metal_pack,text="Abundance", bd=4, relief=tk.GROOVE,padx=39)
+        metal_label.pack(padx=0, pady=0)
+        metal_entry = tk.Entry(self.tab3, bd=4, relief=tk.SUNKEN)
+        metal_entry.place(x=430,y=227)
+        temp_pack = tk.Frame(self.tab3)
+        temp_pack.place(x=280,y=305)
+        temp_label = tk.Label(temp_pack,text="Temperature", bd=4, relief=tk.GROOVE,padx=36)
+        temp_label.pack(padx=0, pady=0)
+        temp_entry = tk.Entry(self.tab3, bd=4, relief=tk.SUNKEN)
+        temp_entry.place(x=430,y=305)
+        thetar_pack = tk.Frame(self.tab3)
+        thetar_pack.place(x=280,y=383)
+        thetar_label = tk.Label(thetar_pack,text="θ_r", bd=4, relief=tk.GROOVE,padx=62)
+        thetar_label.pack(padx=0, pady=0)
+        thetar_entry = tk.Entry(self.tab3, bd=4, relief=tk.SUNKEN)
+        thetar_entry.place(x=430,y=383)
+        EBV_pack = tk.Frame(self.tab3)
+        EBV_pack.place(x=280,y=461)
+        EBV_label = tk.Label(EBV_pack,text="E(B-V)", bd=4, relief=tk.GROOVE,padx=53)
+        EBV_label.pack(padx=0, pady=0)
+        EBV_entry = tk.Entry(self.tab3, bd=4, relief=tk.SUNKEN)
+        EBV_entry.place(x=430,y=461)
+        bounds_labelgrav = tk.Label(grav_pack, text="(min: 0.0, max: 5.0)", padx=20, bg = "RosyBrown1").pack(side=tk.BOTTOM,padx=0, pady=0)
+        bounds_labeltemp = tk.Label(metal_pack, text="(min: -2.5, max: 0.5)", padx=18, bg = "RosyBrown1").pack(side=tk.BOTTOM,padx=0,pady=0)
+        bounds_labelmetal = tk.Label(temp_pack, text="(min: 3500, max: 50000)", padx=9, bg = "RosyBrown1").pack(padx=0,pady=0)
+        interp_pack = tk.Frame(self.tab3,bg='misty rose')
+        interp_pack.place(x=80,y=300)
+        interp_label = tk.Label(interp_pack,text="Interpolation method",bd=4,relief=tk.GROOVE,padx=13,pady=5,bg='white')
+        interp_label.config(highlightcolor='misty rose',highlightbackground='misty rose')
+        interp_label.pack(padx=0, pady=0)
+        interpsel = tk.StringVar()
+        interpsel.set("                                 ")
+        interpseloptions = ["Nearest neighbour", "            Linear          "]
+        interpmenu = tk.OptionMenu(interp_pack, interpsel, *interpseloptions)
+        interpmenu.config(highlightcolor='misty rose',highlightbackground='misty rose')
+        interpmenu.pack()
+        filtermenu_pack = tk.Frame(self.tab3)
+        filtermenu_pack.config(bg='papaya whip')
+        filtermenu_pack.place(x=985,y=545)
+        filterlabel = tk.Label(filtermenu_pack,text="Filter",bd=4,relief=tk.GROOVE,padx=42,pady=5,bg='white')
+        filterlabel.pack(padx=0, pady=0)
+        filterchosen = tk.StringVar()
+        filterchosen.set("            ")
+        filtermenu = tk.OptionMenu(filtermenu_pack, filterchosen, "F110W","F148W","F160W","F275W","F336W","F475W","F814W","N219M","N279N","F172M","F169M")
+        filtermenu.config(font=('Arial',12))
+        filtermenu.pack()
+        FTFbutton = tk.Button(self.tab3,text="Calculate",command=findFTF,font=("Arial",14),padx=30,pady=18,bd=3)
+        FTFbutton.place(x=1150,y=535)
+        equation = self.get_image("images/equation.png", 400, 50)
+        equation2 = self.get_image("images/equation2.png", 900, 85)
+        self.equation = equation
+        self.equation2 = equation2
+        equationlabel = tk.Label(self.tab3,image=equation,bd=4,relief=tk.RIDGE).place(x=30,y=30)
+        equation2label = tk.Label(self.tab3,image=equation2,bd=4,relief=tk.RIDGE).place(x=30,y=530)
+        self.intebox = tk.Listbox(self.tab3,bd=5,height=10,width=100)
+        self.intebox.place(x=50,y=670)
+
+        paradict={"c1":"-0.175","c2":"0.807","c4":"0.319","c5":"6.097","x0":"4.592","c3":"2.991","gamma":"0.922","O3":"0.000","O2":"1.322","O1":"2.055","k_IR":"1.057","R_V":"3.001"}
+        framecomb = tk.Frame(self.tab3,bg="gray85")
+        frameleft = tk.Frame(framecomb,bg="RosyBrown1")
+        frameleft.pack(side=tk.LEFT)
+        frameright = tk.Frame(framecomb,bg="RosyBrown1")
+        frameright.pack(side=tk.RIGHT)
+        framecomb.place(x=880,y=135)
+        coollabelbucket =[]
+        coolentrybucket =[]
+        for n,key in enumerate(paradict):
+            coollabelbucket.append(tk.Label(frameleft,font=("Arial",10),text = key,bg="RosyBrown1",bd=4))
+            coollabelbucket[n].pack(pady=1)
+            coolentrybucket.append(tk.Entry(frameright,font=("Arial",10),width=10,bd=3))
+            coolentrybucket[n].insert(0,paradict[key])
+            coolentrybucket[n].pack(pady=2)
+        cherrylabel = tk.Label(self.tab3,font=("Arial",12),text="Extinction parameters",padx=16,pady=10,relief=tk.RIDGE,bd=4,bg='white').place(x=650,y=145)
+        berrylabel = tk.Label(self.tab3,font=("Arial",12),text="Model flux parameters",padx=16,pady=10,relief=tk.RIDGE,bd=4,bg='white').place(x=50,y=150)
+
+
     def build_tabs(self):
         from tkinter import ttk
         ntbook = ttk.Notebook(self)
         ntbook.place(x=0,y=0)
         self.tab1 = ttk.Frame(ntbook,width=1380,height=1500)
         self.tab2 = ttk.Frame(ntbook,width=2000,height=1500)
+        self.tab3 = ttk.Frame(ntbook,width=2000,height=1500)
         self.tab1.pack()
         self.tab2.pack()
+        self.tab3.pack()
         ntbook.add(self.tab1,text="f_lambda")
         ntbook.add(self.tab2,text="filters")
+        ntbook.add(self.tab3,text="flux through filters")
         bgcanvas1 = tk.Canvas(self.tab1,bg="light steel blue",width=1380,height=1500).place(x=0,y=0)
         bgcanvas2 = tk.Canvas(self.tab2,bg="white",width=2000,height=1500).place(x=0,y=0)
+        bgcanvas3 = tk.Canvas(self.tab3,bg="gray95",width=2000,height=1500).place(x=0,y=0)
 
 
     def resolution(self):
@@ -263,6 +428,18 @@ class App(tk.Tk):
             for row in range(len(grid_rc_2[0])):
                 for column in range(len(grid_rc_2[1])):
                     testlabellist.append(tk.Label(self.tab2,text="{},{}".format(row,column)).grid(row=row,column=column))
+    
+    def configure_grid3(self,testlabels=None):
+        grid_rc_3 = [[100,100,100,100,100,100,100,100,100],[115,115,115,115,115,115,115,115,115,115,115,115,115,115]]
+        for row in range(len(grid_rc_3[0])):
+            self.tab3.rowconfigure(row,minsize=grid_rc_3[0][row])
+        for column in range(len(grid_rc_3[1])):
+            self.tab3.columnconfigure(column,minsize=grid_rc_3[1][column])
+        if testlabels == True:
+            testlabellist=[]
+            for row in range(len(grid_rc_3[0])):
+                for column in range(len(grid_rc_3[1])):
+                    testlabellist.append(tk.Label(self.tab3,text="{},{}".format(row,column)).grid(row=row,column=column))
 
     def get_image(self,filepath,dimx,dimy):
         from PIL import Image, ImageTk
