@@ -235,9 +235,9 @@ class Filter(tk.Frame):
             ylabellist = ["throughput","effective area [cm$^2$]","throughput","throughput","throughput","throughput","throughput","effective area [cm$^2$]","effective area [cm$^2$]","effective area [cm$^2$]","effective area [cm$^2$]"]
             ax.set_xlabel("wavelength[nm]")
             ax.set_ylabel(r"{}".format(ylabellist[i]))
-            print("xmin ", float(self.xdata.iat[0,i]-self.plusx[i]))
-            print("xmax ", float(self.xdata.iat[self.xdata.iloc[:,i].last_valid_index(),i])+self.plusx[i])
-            print("ymax ", max(self.ydata.iloc[:,i])+self.plusy[i])
+            #print("xmin ", float(self.xdata.iat[0,i]-self.plusx[i]))
+            #print("xmax ", float(self.xdata.iat[self.xdata.iloc[:,i].last_valid_index(),i])+self.plusx[i])
+            #print("ymax ", max(self.ydata.iloc[:,i])+self.plusy[i])
             #                ???                              float(self.xdata_new.iat[self.xdata_new.iloc[:,i].last_valid_index(),i])+self.plusx[i]
             ax.axis([float(self.xdata.iat[0,i]-self.plusx[i]),float(self.xdata_new.iat[self.xdata_new.iloc[:,i].last_valid_index(),i])+self.plusx[i],0,max(self.ydata.iloc[:,i])+self.plusy[i]])
             ax.scatter(self.xdata.iloc[:,i],self.ydata.iloc[:,i])
