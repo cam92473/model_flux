@@ -350,7 +350,7 @@ class App(tk.Tk):
         filterlabel.pack(padx=0, pady=0)
         filterchosen = tk.StringVar()
         filterchosen.set("            ")
-        filtermenu = tk.OptionMenu(filtermenu_pack, filterchosen, "F110W","F148W","F160W","F275W","F336W","F475W","F814W","N219M","N279N","F172M","F169M")
+        filtermenu = tk.OptionMenu(filtermenu_pack, filterchosen, "F148W","F169M","F172M","N219M","N279N","f275w","f336w","f475w","f814w","f110w","f160w")
         filtermenu.config(font=('Arial',12))
         filtermenu.pack()
         FTFbutton = tk.Button(self.tab3,text="Calculate",command=findFTF,font=("Arial",14),padx=30,pady=18,bd=3)

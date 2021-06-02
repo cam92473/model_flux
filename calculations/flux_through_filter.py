@@ -39,24 +39,26 @@ class FTF(tk.Frame):
 
     def sum_over_wavelengths(self):
         
-        if self.filter == "F110W":
+        if self.filter == "f110w":
             appropwaves =  self.F110Wlist
         elif self.filter == "F148W":
             appropwaves =  self.F148Wlist
-        elif self.filter == "F160W":
-            appropwaves =  self.F160list
-        elif self.filter == "F275W":
+        elif self.filter == "f160w":
+            appropwaves =  self.F160Wlist
+        elif self.filter == "f275w":
             appropwaves =  self.F275Wlist
-        elif self.filter == "F336W":
+        elif self.filter == "f336w":
             appropwaves =  self.F336Wlist
-        elif self.filter == "F475W":
+        elif self.filter == "f475w":
             appropwaves =  self.F475Wlist
-        elif self.filter == "F814W":
+        elif self.filter == "f814w":
             appropwaves =  self.F814Wlist
         elif self.filter == "N219M":
             appropwaves =  self.N219Mlist
         elif self.filter == "N279N":
             appropwaves =  self.N279Nlist
+        elif self.filter == "F172M":
+            appropwaves =  self.F172Mlist    
         elif self.filter == "F169M":
             appropwaves =  self.F169Mlist
 
