@@ -1,6 +1,8 @@
 from operator import eq
 import tkinter as tk
 
+from matplotlib.pyplot import table
+
 
 class Extinction(tk.Frame):
     def __init__(self,tab1,c1,c2,c4,c5,x0,c3,gamma,O3,O2,O1,k_IR,R_V):
@@ -225,9 +227,11 @@ class App(tk.Tk):
         normbutton.pack(side=tk.BOTTOM,ipadx=26,ipady=20)
 
     def create_tab3(self):
-
-        def findFTF():
+        
+        def get_areas():
             from tkinter import messagebox
+            interpsel = tk.StringVar()
+            interpsel.set("            Linear          ")
             try:
                 user_grav = float(grav_entry.get())
                 user_metal = float(metal_entry.get())
@@ -287,65 +291,281 @@ class App(tk.Tk):
                             from calculations.filter_calib import Filter
                             ghostfilter = Filter(self.tab3)
                             from calculations.flux_through_filter import FTF
-                            ftf = FTF(self.tab3,extinction.grapharray_xsrt[:,1],extinction.R_V,interpo.final_wave_list,user_theta_r,user_ebv,user_filter,ghostfilter.xcont,ghostfilter.normalized2,ghostfilter.F110Wlist,ghostfilter.F148Wlist,ghostfilter.F160Wlist,ghostfilter.F275Wlist,ghostfilter.F336Wlist,ghostfilter.F475Wlist,ghostfilter.F814Wlist,ghostfilter.N219Mlist,ghostfilter.N279Nlist,ghostfilter.F172Mlist,ghostfilter.F169Mlist)
+                            ftf = FTF(self.tab3,extinction.grapharray_xsrt[:,1],extinction.R_V,interpo.final_wave_list,user_theta_r,user_ebv,user_filter,ghostfilter.xcont,ghostfilter.normalized2,ghostfilter.f110wlist,ghostfilter.F148Wlist,ghostfilter.f160wlist,ghostfilter.f275wlist,ghostfilter.f336wlist,ghostfilter.f475wlist,ghostfilter.f814wlist,ghostfilter.N219Mlist,ghostfilter.N279Nlist,ghostfilter.F172Mlist,ghostfilter.F169Mlist)
+                            ftf.sum_over_wavelengths()
+                            import matplotlib
+                            from matplotlib.figure import Figure
+                            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+                            matplotlib.use('TkAgg')
+                            fig = Figure(figsize=(4.2,2.4))
+                            areas = fig.add_subplot(111)
+                            ftf.appropwaves.pop()
+                            areas.scatter(ftf.appropwaves,ftf.areaelements)
+
+                            canvas = FigureCanvasTkAgg(fig, master=whiteframe2)
+                            canvas.get_tk_widget().pack()
+                            canvas.draw()
+                            
+                            areasbox.insert(tk.END,"left wavelength of trapezoid             trapezoid area")
+                            for i in range(len(ftf.appropwaves)):
+                                areasbox.insert(tk.END,"{}                                  {}".format(ftf.appropwaves[i],ftf.areaelements[i]))
+
+
+        def openfilterdisplay():
+            
+            filtdisp = tk.Toplevel()
+            filtdisp.configure(bg="gray95")
+            filtdisp.geometry("1300x900+350+50")
+            import ctypes
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+            from matplotlib import gridspec as gridspec
+
+            from calculations.filter_calib import Filter
+            fobj = Filter(self.tab3)
+            import matplotlib
+            from matplotlib.figure import Figure
+            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+            matplotlib.use('TkAgg')
+            fig = Figure(figsize=(12,12))
+
+            axprime = fig.add_gridspec(11, 2)
+
+            zerosall = []
+            for z in range(1221):
+                zerosall.append(0)
+            axall = fig.add_subplot(axprime[0,0:1])
+            axall.set_title("All model wavelengths (N = 1221, from 90.9 to 160000 nm)")
+            axall.axis([0,160000,-1,1])
+            axall.scatter(fobj.indata_nm,zerosall)
+            axall.set(yticklabels=[])
+            axall.tick_params(left=False)
+
+            filterrs = [fobj.F148Wlist,fobj.F169Mlist,fobj.F172Mlist,fobj.N219Mlist,fobj.N279Nlist,fobj.f275wlist,fobj.f336wlist,fobj.f475wlist,fobj.f814wlist,fobj.f110wlist,fobj.f160wlist]
+            filterrnames = ["F148W","F169M","F172M","N219M","N279N","f275w","f336w","f475w","f814w","f110w","f160w"]
+            for k,filt in enumerate(filterrs):
+                zeros = []
+                for z in range(len(filt)):
+                    zeros.append(0)
+                if k < 5:
+                    ax = fig.add_subplot(axprime[2*(k+1),0:1])
+                elif k >= 5:
+                    ax = fig.add_subplot(axprime[2*(k-5),1:2])  
+                ax.set_title("{} wavelengths (N = {}, from {} to {} nm)".format(filterrnames[k],len(filt),filt[0],filt[-1]))
+                ax.axis([filt[0],filt[-1],-1,1])
+                ax.scatter(filt,zeros)
+                ax.set(yticklabels=[])
+                ax.tick_params(left=False)
+
+            fig.tight_layout(h_pad=1)
+            canvas = FigureCanvasTkAgg(fig, master=filtdisp)
+            canvas.get_tk_widget().pack()
+            canvas.draw()
+
+        def get_norm2():
+            from calculations.filter_calib import Filter
+            import numpy as np
+            ghostfilter = Filter(self.tab3)
+            ghostfilter.build_ultimate()
+            norm2box.insert(tk.END,"F148W  F169M  F172M  N219M  N279N  f275w  f336w  f475w  f814w  f110w  f160w")
+            for row in range(1221):
+                norm2rowlist = ghostfilter.ultimate_normalized.round(decimals=4).iloc[row,:].values.tolist()
+                for index in range(len(norm2rowlist)):
+                    if np.isnan(norm2rowlist[index]):
+                        norm2rowlist[index] = 0.0000
+                    if norm2rowlist[index] == 0:
+                        norm2rowlist[index] = '0.0000'
+                norm2box.insert(tk.END,"{}          {}          {}          {}          {}          {}          {}          {}          {}          {}          {}".format(norm2rowlist[0],norm2rowlist[1],norm2rowlist[2],norm2rowlist[3],norm2rowlist[4],norm2rowlist[5],norm2rowlist[6],norm2rowlist[7],norm2rowlist[8],norm2rowlist[9],norm2rowlist[10]))
+
+        def get_lambda2():
+            from tkinter import messagebox
+            interpsel = tk.StringVar()
+            interpsel.set("            Linear          ")
+            try:
+                user_grav = float(grav_entry.get())
+                user_metal = float(metal_entry.get())
+                user_temp = float(temp_entry.get())
+                user_interp = interpsel.get()
+                user_theta_r = float(thetar_entry.get())
+                user_ebv = float(EBV_entry.get())
+            except:
+                tk.messagebox.showinfo('Error', 'Please enter numbers')
+            else:
+                if user_grav < 0 or user_grav > 5:
+                    tk.messagebox.showinfo('Error', 'Please enter a value from 0 to 5')
+                elif user_metal < -2.5 or user_metal > 0.5:
+                    tk.messagebox.showinfo('Error', 'Please enter a value from -2.5 to 0.5')
+                elif user_temp < 3500 or user_temp > 50000:
+                    tk.messagebox.showinfo('Error', 'Please enter a value from 3500 to 50000')
+                elif user_interp == "                                 ":
+                    tk.messagebox.showinfo('Error', 'Please select an interpolation method')
+                else:
+                    flag = False
+                    temp_cliffs = [6250,7750,8500,9250,15000,20000,27000,32000,40000,50000]
+                    grav_flats = [0.0,0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5]
+                    for p in range(10):
+                        if user_grav <= grav_flats[p]:
+                            if user_temp >= temp_cliffs[p]:
+                                tk.messagebox.showinfo('Error','This will return a spectrum where all fluxes are zero. Please select different values.')                                
+                                flag = True
+                        if user_grav <= 2.0 and user_temp >= 12000 and user_temp <= 13000:
+                            tk.messagebox.showinfo('Error','This will return a spectrum where all fluxes are zero. Please select different values.')                                
+                            flag = True
+                    if flag == False:
+                        try:
+                            c1=float(coolentrybucket[0].get())
+                            c2=float(coolentrybucket[1].get())
+                            c4=float(coolentrybucket[2].get())
+                            c5=float(coolentrybucket[3].get())
+                            x0=float(coolentrybucket[4].get())
+                            c3=float(coolentrybucket[5].get())
+                            gamma=float(coolentrybucket[6].get())
+                            O3=float(coolentrybucket[7].get())
+                            O2=float(coolentrybucket[8].get())
+                            O1=float(coolentrybucket[9].get())
+                            k_IR=float(coolentrybucket[10].get())
+                            R_V=float(coolentrybucket[11].get())
+                        
+                        except:
+                            from tkinter import messagebox
+                            tk.messagebox.showinfo('Error', 'Please reenter parameters.')
+                        else:
+                            extinction = Extinction(self.tab1,c1,c2,c4,c5,x0,c3,gamma,O3,O2,O1,k_IR,R_V)
+                            extinction.build_axes()
+                            interpo = Interpo(user_grav,user_temp,user_metal,user_interp)
+                            interpo.run()
+                            f_list = []
+                            import numpy as np
+                            ext_ys = np.flipud(extinction.grapharray_xsrt[:,1])
+                            for i in range(1221):
+                                f_list.append(interpo.final_wave_list[i]*user_theta_r**2*10**((-0.4*user_ebv)*(ext_ys[i]+R_V)))
+                            from calculations.writetotable import TableWriter
+                            tablewriter = TableWriter(self.tab3,interpo.final_wave_list)
+                            tablewriter.create_table_and_label3(extinction.grapharray_xsrt,extinction.R_V,user_theta_r,user_ebv,f_list)
+
+        def findFTF():
+            from tkinter import messagebox
+            interpsel = tk.StringVar()
+            interpsel.set("            Linear          ")
+            try:
+                user_grav = float(grav_entry.get())
+                user_metal = float(metal_entry.get())
+                user_temp = float(temp_entry.get())
+                user_interp = interpsel.get()
+                user_filter = filterchosen.get()
+                user_theta_r = float(thetar_entry.get())
+                user_ebv = float(EBV_entry.get())
+            except:
+                tk.messagebox.showinfo('Error', 'Please enter numbers')
+            else:
+                if user_grav < 0 or user_grav > 5:
+                    tk.messagebox.showinfo('Error', 'Please enter a value from 0 to 5')
+                elif user_metal < -2.5 or user_metal > 0.5:
+                    tk.messagebox.showinfo('Error', 'Please enter a value from -2.5 to 0.5')
+                elif user_temp < 3500 or user_temp > 50000:
+                    tk.messagebox.showinfo('Error', 'Please enter a value from 3500 to 50000')
+                elif user_interp == "                                 ":
+                    tk.messagebox.showinfo('Error', 'Please select an interpolation method')
+                elif user_filter == "            ":
+                    tk.messagebox.showinfo('Error', 'Please select a filter')
+                else:
+                    flag = False
+                    temp_cliffs = [6250,7750,8500,9250,15000,20000,27000,32000,40000,50000]
+                    grav_flats = [0.0,0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0,4.5]
+                    for p in range(10):
+                        if user_grav <= grav_flats[p]:
+                            if user_temp >= temp_cliffs[p]:
+                                tk.messagebox.showinfo('Error','This will return a spectrum where all fluxes are zero. Please select different values.')                                
+                                flag = True
+                        if user_grav <= 2.0 and user_temp >= 12000 and user_temp <= 13000:
+                            tk.messagebox.showinfo('Error','This will return a spectrum where all fluxes are zero. Please select different values.')                                
+                            flag = True
+                    if flag == False:
+                        try:
+                            c1=float(coolentrybucket[0].get())
+                            c2=float(coolentrybucket[1].get())
+                            c4=float(coolentrybucket[2].get())
+                            c5=float(coolentrybucket[3].get())
+                            x0=float(coolentrybucket[4].get())
+                            c3=float(coolentrybucket[5].get())
+                            gamma=float(coolentrybucket[6].get())
+                            O3=float(coolentrybucket[7].get())
+                            O2=float(coolentrybucket[8].get())
+                            O1=float(coolentrybucket[9].get())
+                            k_IR=float(coolentrybucket[10].get())
+                            R_V=float(coolentrybucket[11].get())
+                        
+                        except:
+                            from tkinter import messagebox
+                            tk.messagebox.showinfo('Error', 'Please reenter parameters.')
+                        else:
+                            extinction = Extinction(self.tab1,c1,c2,c4,c5,x0,c3,gamma,O3,O2,O1,k_IR,R_V)
+                            extinction.build_axes()
+                            interpo = Interpo(user_grav,user_temp,user_metal,user_interp)
+                            interpo.run()
+                            from calculations.filter_calib import Filter
+                            ghostfilter = Filter(self.tab3)
+                            from calculations.flux_through_filter import FTF
+                            ftf = FTF(self.tab3,extinction.grapharray_xsrt[:,1],extinction.R_V,interpo.final_wave_list,user_theta_r,user_ebv,user_filter,ghostfilter.xcont,ghostfilter.normalized2,ghostfilter.f110wlist,ghostfilter.F148Wlist,ghostfilter.f160wlist,ghostfilter.f275wlist,ghostfilter.f336wlist,ghostfilter.f475wlist,ghostfilter.f814wlist,ghostfilter.N219Mlist,ghostfilter.N279Nlist,ghostfilter.F172Mlist,ghostfilter.F169Mlist)
                             ftf.sum_over_wavelengths()
                             self.intebox.insert(tk.END,"Integrated model flux through {}: {}".format(user_filter,ftf.Igral))
 
 
         self.configure_grid3(testlabels=False)
-        totbub = tk.Canvas(self.tab3,bg='papaya whip',height=1500,width=2000)
+        totbub = tk.Canvas(self.tab3,bg='papaya whip',height=500,width=2000)
         totbub.place(x=0,y=0)
-        upbub = tk.Canvas(self.tab3,bg='lavender blush',bd=3,height=380,width=570,relief=tk.GROOVE)
-        upbub.place(x=30,y=120)
-        downbub = tk.Canvas(self.tab3,bg='lavender blush',bd=3,height=360,width=430,relief=tk.GROOVE)
-        downbub.place(x=630,y=120)
+        upbub = tk.Canvas(self.tab3,bg='lavender blush',bd=3,height=390,width=320,relief=tk.GROOVE)
+        upbub.place(x=30,y=70)
+        totbub2 = tk.Canvas(self.tab3,bg='papaya whip',height=500,width=2000)
+        totbub2.place(x=0,y=520)
+        downbub = tk.Canvas(self.tab3,bg='lavender blush',bd=3,height=360,width=180,relief=tk.GROOVE)
+        downbub.place(x=380,y=70)
         grav_pack = tk.Frame(self.tab3)
-        grav_pack.place(x=280,y=149)
+        grav_pack.place(x=50,y=99)
         grav_label = tk.Label(grav_pack,text="Log of surface gravity", bd=4, relief=tk.GROOVE,padx=13)
         grav_label.pack(padx=0, pady=0)
         grav_entry = tk.Entry(self.tab3, bd=4, relief=tk.SUNKEN)
-        grav_entry.place(x=430,y=149)
+        grav_entry.place(x=200,y=99)
         metal_pack = tk.Frame(self.tab3)
-        metal_pack.place(x=280,y=227)
+        metal_pack.place(x=50,y=177)
         metal_label = tk.Label(metal_pack,text="Abundance", bd=4, relief=tk.GROOVE,padx=39)
         metal_label.pack(padx=0, pady=0)
         metal_entry = tk.Entry(self.tab3, bd=4, relief=tk.SUNKEN)
-        metal_entry.place(x=430,y=227)
+        metal_entry.place(x=200,y=177)
         temp_pack = tk.Frame(self.tab3)
-        temp_pack.place(x=280,y=305)
+        temp_pack.place(x=50,y=255)
         temp_label = tk.Label(temp_pack,text="Temperature", bd=4, relief=tk.GROOVE,padx=36)
         temp_label.pack(padx=0, pady=0)
         temp_entry = tk.Entry(self.tab3, bd=4, relief=tk.SUNKEN)
-        temp_entry.place(x=430,y=305)
+        temp_entry.place(x=200,y=255)
         thetar_pack = tk.Frame(self.tab3)
-        thetar_pack.place(x=280,y=383)
+        thetar_pack.place(x=50,y=333)
         thetar_label = tk.Label(thetar_pack,text="θ_r", bd=4, relief=tk.GROOVE,padx=62)
         thetar_label.pack(padx=0, pady=0)
         thetar_entry = tk.Entry(self.tab3, bd=4, relief=tk.SUNKEN)
-        thetar_entry.place(x=430,y=383)
+        thetar_entry.place(x=200,y=333)
         EBV_pack = tk.Frame(self.tab3)
-        EBV_pack.place(x=280,y=461)
+        EBV_pack.place(x=50,y=411)
         EBV_label = tk.Label(EBV_pack,text="E(B-V)", bd=4, relief=tk.GROOVE,padx=53)
         EBV_label.pack(padx=0, pady=0)
         EBV_entry = tk.Entry(self.tab3, bd=4, relief=tk.SUNKEN)
-        EBV_entry.place(x=430,y=461)
+        EBV_entry.place(x=200,y=411)
         bounds_labelgrav = tk.Label(grav_pack, text="(min: 0.0, max: 5.0)", padx=20, bg = "RosyBrown1").pack(side=tk.BOTTOM,padx=0, pady=0)
         bounds_labeltemp = tk.Label(metal_pack, text="(min: -2.5, max: 0.5)", padx=18, bg = "RosyBrown1").pack(side=tk.BOTTOM,padx=0,pady=0)
         bounds_labelmetal = tk.Label(temp_pack, text="(min: 3500, max: 50000)", padx=9, bg = "RosyBrown1").pack(padx=0,pady=0)
-        interp_pack = tk.Frame(self.tab3,bg='misty rose')
-        interp_pack.place(x=80,y=300)
-        interp_label = tk.Label(interp_pack,text="Interpolation method",bd=4,relief=tk.GROOVE,padx=13,pady=5,bg='white')
-        interp_label.config(highlightcolor='misty rose',highlightbackground='misty rose')
-        interp_label.pack(padx=0, pady=0)
-        interpsel = tk.StringVar()
-        interpsel.set("                                 ")
-        interpseloptions = ["Nearest neighbour", "            Linear          "]
-        interpmenu = tk.OptionMenu(interp_pack, interpsel, *interpseloptions)
-        interpmenu.config(highlightcolor='misty rose',highlightbackground='misty rose')
-        interpmenu.pack()
+        #interp_pack = tk.Frame(self.tab3,bg='misty rose')
+        #interp_pack.place(x=50,y=489)
+        #interp_label = tk.Label(interp_pack,text="Interpolation method",bd=4,relief=tk.GROOVE,padx=13,pady=5,bg='white')
+        #interp_label.config(highlightcolor='misty rose',highlightbackground='misty rose')
+        #interp_label.pack(padx=0, pady=0)
+        #interpsel = tk.StringVar()
+        #interpsel.set("                                 ")
+        #interpseloptions = ["Nearest neighbour", "            Linear          "]
+        #interpmenu = tk.OptionMenu(interp_pack, interpsel, *interpseloptions)
+        #interpmenu.config(highlightcolor='misty rose',highlightbackground='misty rose')
+        #interpmenu.pack()
         filtermenu_pack = tk.Frame(self.tab3)
         filtermenu_pack.config(bg='papaya whip')
-        filtermenu_pack.place(x=985,y=545)
+        filtermenu_pack.place(x=35,y=545)
         filterlabel = tk.Label(filtermenu_pack,text="Filter",bd=4,relief=tk.GROOVE,padx=42,pady=5,bg='white')
         filterlabel.pack(padx=0, pady=0)
         filterchosen = tk.StringVar()
@@ -354,15 +574,17 @@ class App(tk.Tk):
         filtermenu.config(font=('Arial',12))
         filtermenu.pack()
         FTFbutton = tk.Button(self.tab3,text="Calculate",command=findFTF,font=("Arial",14),padx=30,pady=18,bd=3)
-        FTFbutton.place(x=1150,y=535)
-        equation = self.get_image("images/equation.png", 400, 50)
-        equation2 = self.get_image("images/equation2.png", 900, 85)
+        FTFbutton.place(x=330,y=540)
+        equation = self.get_image("images/equation.png", 320, 40)
+        equation2 = self.get_image("images/equation2.png", 720, 68)
         self.equation = equation
         self.equation2 = equation2
-        equationlabel = tk.Label(self.tab3,image=equation,bd=4,relief=tk.RIDGE).place(x=30,y=30)
-        equation2label = tk.Label(self.tab3,image=equation2,bd=4,relief=tk.RIDGE).place(x=30,y=530)
-        self.intebox = tk.Listbox(self.tab3,bd=5,height=10,width=100)
-        self.intebox.place(x=50,y=670)
+        equationlabel = tk.Label(self.tab3,image=equation,bd=4,relief=tk.RIDGE).place(x=1030,y=20)
+        equation2label = tk.Label(self.tab3,image=equation2,bd=4,relief=tk.RIDGE).place(x=630,y=550)
+        self.intebox = tk.Listbox(self.tab3,bd=5,height=15,width=75)
+        self.intebox.place(x=30,y=640)
+        filterbutton = tk.Button(self.tab3,text="Filter info",font=("Arial",12),padx=20,pady=15,command=openfilterdisplay)
+        filterbutton.place(x=185,y=550)
 
         paradict={"c1":"-0.175","c2":"0.807","c4":"0.319","c5":"6.097","x0":"4.592","c3":"2.991","gamma":"0.922","O3":"0.000","O2":"1.322","O1":"2.055","k_IR":"1.057","R_V":"3.001"}
         framecomb = tk.Frame(self.tab3,bg="gray85")
@@ -370,7 +592,7 @@ class App(tk.Tk):
         frameleft.pack(side=tk.LEFT)
         frameright = tk.Frame(framecomb,bg="RosyBrown1")
         frameright.pack(side=tk.RIGHT)
-        framecomb.place(x=880,y=135)
+        framecomb.place(x=408,y=85)
         coollabelbucket =[]
         coolentrybucket =[]
         for n,key in enumerate(paradict):
@@ -379,9 +601,44 @@ class App(tk.Tk):
             coolentrybucket.append(tk.Entry(frameright,font=("Arial",10),width=10,bd=3))
             coolentrybucket[n].insert(0,paradict[key])
             coolentrybucket[n].pack(pady=2)
-        cherrylabel = tk.Label(self.tab3,font=("Arial",12),text="Extinction parameters",padx=16,pady=10,relief=tk.RIDGE,bd=4,bg='white').place(x=650,y=145)
-        berrylabel = tk.Label(self.tab3,font=("Arial",12),text="Model flux parameters",padx=16,pady=10,relief=tk.RIDGE,bd=4,bg='white').place(x=50,y=150)
+        cherrylabel = tk.Label(self.tab3,font=("Arial",12),text="Extinction parameters",padx=8,pady=10,relief=tk.RIDGE,bd=3,bg='white').place(x=388,y=30)
+        berrylabel = tk.Label(self.tab3,font=("Arial",12),text="Model flux parameters",padx=16,pady=10,relief=tk.RIDGE,bd=3,bg='white').place(x=100,y=30)
 
+        frame_lambda2 = tk.Frame(self.tab3)
+        frame_lambda2.place(x=630,y=84)
+        lambdabutton2 = tk.Button(self.tab3, font = ("Arial",12), text="Get f_lambda", bd=4, relief=tk.RAISED, command = get_lambda2, padx = 50, pady = 0)
+        lambdabutton2.place(x=629,y=50)
+        lambdabox_label2 = tk.Label(frame_lambda2, text="indexλ       λ                 F_λ                   k(λ-V)                                                    f_λ                                                                                                     `", relief=tk.GROOVE, padx=3, bg="gray95")
+        lambdabox_label2.pack(pady=0,anchor=tk.W)
+        scrollbar3 = tk.Scrollbar(frame_lambda2)
+        scrollbar3.pack(side=tk.RIGHT,fill=tk.Y)
+        lambdabox2 = tk.Listbox(frame_lambda2,bd=5,height=10,width=115,yscrollcommand=scrollbar3.set)
+        lambdabox2.pack(pady=0)
+        scrollbar3.configure(command=lambdabox2.yview)
+
+        frame_norm2 = tk.Frame(self.tab3)
+        frame_norm2.place(x=630,y=320)
+        norm2button = tk.Button(self.tab3, font = ("Arial",12), text="Get Rsp_lambda (all filters)", bd=4, relief=tk.RAISED, command = get_norm2, padx = 50, pady = 0)
+        norm2button.place(x=630,y=290)
+        scrollbar3 = tk.Scrollbar(frame_norm2)
+        scrollbar3.pack(side=tk.RIGHT,fill=tk.Y)
+        norm2box = tk.Listbox(frame_norm2,bd=5,height=10,width=115)
+        norm2box.pack(pady=0)
+        scrollbar3.configure(command=norm2box.yview)
+
+        frame_area = tk.Frame(self.tab3)
+        frame_area.place(x=545,y=700)
+        areabutton = tk.Button(self.tab3, font = ("Arial",12), text="Get trapezoidal area elements", bd=4, relief=tk.RAISED, command = get_areas, padx = 10, pady = 0)
+        areabutton.place(x=585,y=660)
+        #lambdabox_label2 = tk.Label(frame_lambda2, text="indexλ       λ                 F_λ                   k(λ-V)                                                    f_λ                                                                                                     `", relief=tk.GROOVE, padx=3, bg="gray95")
+        #lambdabox_label2.pack(pady=0,anchor=tk.W)
+        scrollbar4 = tk.Scrollbar(frame_area)
+        scrollbar4.pack(side=tk.RIGHT,fill=tk.Y)
+        areasbox = tk.Listbox(frame_area,bd=5,height=10,width=50)
+        areasbox.pack(pady=0)
+        scrollbar4.configure(command=areasbox.yview)
+        whiteframe2 = tk.Canvas(self.tab3,bg="white",height=250,width=420,bd=3,relief=tk.SUNKEN)
+        whiteframe2.place(x=930,y=645)
 
     def build_tabs(self):
         from tkinter import ttk
