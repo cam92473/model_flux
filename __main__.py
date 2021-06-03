@@ -293,16 +293,33 @@ class App(tk.Tk):
                             from calculations.flux_through_filter import FTF
                             ftf = FTF(self.tab3,extinction.grapharray_xsrt[:,1],extinction.R_V,interpo.final_wave_list,user_theta_r,user_ebv,user_filter,ghostfilter.xcont,ghostfilter.normalized2,ghostfilter.f110wlist,ghostfilter.F148Wlist,ghostfilter.f160wlist,ghostfilter.f275wlist,ghostfilter.f336wlist,ghostfilter.f475wlist,ghostfilter.f814wlist,ghostfilter.N219Mlist,ghostfilter.N279Nlist,ghostfilter.F172Mlist,ghostfilter.F169Mlist)
                             ftf.sum_over_wavelengths()
+                            areadisp = tk.Toplevel()
+                            areadisp.configure(bg="gray95")
+                            areadisp.geometry("1300x900+350+50")
+                            import ctypes
+                            ctypes.windll.shcore.SetProcessDpiAwareness(1)
                             import matplotlib
                             from matplotlib.figure import Figure
                             from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
                             matplotlib.use('TkAgg')
-                            fig = Figure(figsize=(4.2,2.4))
-                            areas = fig.add_subplot(111)
+                            fig = Figure(figsize=(10,10))
+                            fandrsp = fig.add_subplot(311)
+                            fandrsp.scatter(ftf.appropwaves,ftf.Rsp)
+                            fandrsp.scatter(ftf.appropwaves,ftf.f_list_approp)
+                            fandrsp.set_title("Rsp_{} (blue) and f_lambda".format(user_filter))
+                            product = fig.add_subplot(312)
+                            product.scatter(ftf.appropwaves,ftf.prodfunc)
+                            product.plot(ftf.appropwaves,ftf.prodfunc)
+                            product.set_title("Rsp_{} * f_lambda (orange)".format(user_filter))
+                            for i in range(len(ftf.appropwaves)):
+                                product.vlines(ftf.appropwaves[i], 0, ftf.prodfunc[i])
+                            areas = fig.add_subplot(313)
+                            areas.set_title("Trapezoidal areas (plotted vs. left wavelength of trapezoid)")
                             ftf.appropwaves.pop()
-                            areas.scatter(ftf.appropwaves,ftf.areaelements)
-
-                            canvas = FigureCanvasTkAgg(fig, master=whiteframe2)
+                            areas.plot(ftf.appropwaves,ftf.areaelements)
+                            fig.tight_layout(h_pad=2)
+                            
+                            canvas = FigureCanvasTkAgg(fig, master=areadisp)
                             canvas.get_tk_widget().pack()
                             canvas.draw()
                             
@@ -627,9 +644,9 @@ class App(tk.Tk):
         scrollbar3.configure(command=norm2box.yview)
 
         frame_area = tk.Frame(self.tab3)
-        frame_area.place(x=545,y=700)
+        frame_area.place(x=930,y=705)
         areabutton = tk.Button(self.tab3, font = ("Arial",12), text="Get trapezoidal area elements", bd=4, relief=tk.RAISED, command = get_areas, padx = 10, pady = 0)
-        areabutton.place(x=585,y=660)
+        areabutton.place(x=970,y=665)
         #lambdabox_label2 = tk.Label(frame_lambda2, text="indexλ       λ                 F_λ                   k(λ-V)                                                    f_λ                                                                                                     `", relief=tk.GROOVE, padx=3, bg="gray95")
         #lambdabox_label2.pack(pady=0,anchor=tk.W)
         scrollbar4 = tk.Scrollbar(frame_area)
@@ -637,8 +654,6 @@ class App(tk.Tk):
         areasbox = tk.Listbox(frame_area,bd=5,height=10,width=50)
         areasbox.pack(pady=0)
         scrollbar4.configure(command=areasbox.yview)
-        whiteframe2 = tk.Canvas(self.tab3,bg="white",height=250,width=420,bd=3,relief=tk.SUNKEN)
-        whiteframe2.place(x=930,y=645)
 
     def build_tabs(self):
         from tkinter import ttk

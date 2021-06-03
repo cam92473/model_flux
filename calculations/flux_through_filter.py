@@ -35,7 +35,9 @@ class FTF(tk.Frame):
         #print("flist\n",self.f_list)
 
     def get_Rsp(self):
+        import numpy as np
         self.Rsp = self.normalized2.loc[:,self.filter]
+        self.Rsp = self.Rsp.dropna()
 
     def sum_over_wavelengths(self):
         
@@ -61,18 +63,28 @@ class FTF(tk.Frame):
             self.appropwaves =  self.F172Mlist    
         elif self.filter == "F169M":
             self.appropwaves =  self.F169Mlist
+        
 
-        #print("self.appropwaves\n",self.appropwaves)
         self.areaelements = []
+        self.f_list_approp = []
+        self.prodfunc=[]
+
         from astropy.io import fits
         import numpy as np
         with fits.open("fits_library/ckm05/ckm05_3500.fits") as hdul:
             indata_ang = hdul[1].data["WAVELENGTH"]
-            indata_nm = np.array([round(i/10,4) for i in indata_ang]).tolist()
-            #print("indata_nm\n",indata_nm)
-        startind = indata_nm.index(self.appropwaves[0])
-        #print("startind\n",startind)
-        #print("start here\n",indata_nm[startind])
+            indata_nm = np.array([round(i/10,4) for i in indata_ang])
+
+        
+        for j in range(len(indata_nm)):
+            if indata_nm[j] >= self.appropwaves[0] and indata_nm[j] <= self.appropwaves[-1]:
+                self.f_list_approp.append(self.f_list[j])
+        #print("self.appropwaves\n",self.appropwaves)
+
+
+        for lam in range(len(self.appropwaves)):
+            self.prodfunc.append(self.f_list_approp[lam]*self.Rsp[lam])
+
         for lam in range(len(self.appropwaves)-1):
             #print("self.f_list[lam+startind]\n",self.f_list[lam+startind])
             #print("self.Rsp[lam]\n",self.Rsp[lam])
@@ -81,7 +93,7 @@ class FTF(tk.Frame):
             #print("self.f_list[lam+startind]*self.Rsp[lam]+self.f_list[lam+1+startind]*self.Rsp[lam+1])/2\n",(self.f_list[lam+startind]*self.Rsp[lam]+self.f_list[lam+1+startind]*self.Rsp[lam+1])/2)
             #print("(self.appropwaves[lam+1]-self.appropwaves[lam])\n",self.appropwaves[lam+1]-self.appropwaves[lam])
             #print("ALL {}\n".format(lam),(self.f_list[lam+startind]*self.Rsp[lam]+self.f_list[lam+1+startind]*self.Rsp[lam+1])/2*(self.appropwaves[lam+1]-self.appropwaves[lam]))
-            self.areaelements.append((self.f_list[lam+startind]*self.Rsp[lam]+self.f_list[lam+1+startind]*self.Rsp[lam+1])/2*(self.appropwaves[lam+1]-self.appropwaves[lam]))
+            self.areaelements.append((self.f_list_approp[lam]*self.Rsp[lam]+self.f_list_approp[lam+1]*self.Rsp[lam+1])/2*(self.appropwaves[lam+1]-self.appropwaves[lam]))
         self.Igral = sum(self.areaelements)
         #print(self.Igral)
 
